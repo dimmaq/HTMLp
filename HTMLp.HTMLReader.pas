@@ -4,8 +4,7 @@ interface
 
 uses
   Classes,
-
-  HTMLp.DomCore;
+  HTMLp.Consts;
 
 type
   TDelimiters = set of Byte;
@@ -19,6 +18,7 @@ type
     FPrefix: string;
     FLocalName: string;
     FNodeValue: string;
+    FNodeIntValue: Integer;
     FPublicID: string;
     FSystemID: string;
     FIsEmptyElement: Boolean;
@@ -94,6 +94,7 @@ type
     property State: TReaderState read FState;
     property SystemID: string read FSystemID;
     property NodeValue: string read FNodeValue;
+    property NodeIntValue: Integer read FNodeIntValue;
     property OnAttributeEnd: TNotifyEvent read FOnAttributeEnd write FOnAttributeEnd;
     property OnAttributeStart: TNotifyEvent read FOnAttributeStart write FOnAttributeStart;
     property OnCDataSection: TNotifyEvent read FOnCDataSection write FOnCDataSection;
@@ -143,12 +144,12 @@ const
   ScriptStartStr = 'script';
   ScriptEndStr = '</script>';
 
-function DecValue(const Digit: WideChar): Word;
+function DecValue(const Digit: Char): Word;
 begin
   Result := Ord(Digit) - Ord('0')
 end;
 
-function HexValue(const HexChar: WideChar): Word;
+function HexValue(const HexChar: Char): Word;
 var
   C: Char;
 begin
@@ -185,7 +186,7 @@ end;
 
 function THTMLReader.IsAttrTextChar: Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   if FState = rsInQuotedValue then Result := (Ord(WC) <> FQuotation) and (Ord(WC) <> startEntity)
@@ -194,7 +195,7 @@ end;
 
 function THTMLReader.IsDigit(HexBase: Boolean): Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   Result := Ord(WC) in decDigit;
@@ -203,7 +204,7 @@ end;
 
 function THTMLReader.IsEndEntityChar: Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   Result := (Ord(WC) = endEntity);
@@ -211,7 +212,7 @@ end;
 
 function THTMLReader.IsEntityChar: Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   Result := not (Ord(WC) in notEntity);
@@ -219,7 +220,7 @@ end;
 
 function THTMLReader.IsEqualChar: Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   Result := (Ord(WC) = equalChar);
@@ -227,7 +228,7 @@ end;
 
 function THTMLReader.IsHexEntityChar: Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   Result := (Ord(WC) in hexEntity);
@@ -235,7 +236,7 @@ end;
 
 function THTMLReader.IsNumericEntity: Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   Result := (Ord(WC) = numericEntity);
@@ -243,7 +244,7 @@ end;
 
 function THTMLReader.IsQuotation: Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   if FQuotation = 0 then Result := (Ord(WC) in quotation)
@@ -252,7 +253,7 @@ end;
 
 function THTMLReader.IsSlashChar: Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   Result := (Ord(WC) = slashChar);
@@ -260,7 +261,7 @@ end;
 
 function THTMLReader.IsSpecialTagChar: Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   Result := (Ord(WC) = specialTagChar);
@@ -283,7 +284,7 @@ end;
 
 function THTMLReader.IsStartEntityChar: Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   Result := (Ord(WC) = startEntity);
@@ -291,7 +292,7 @@ end;
 
 function THTMLReader.IsStartMarkupChar: Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   Result := (Ord(WC) in startMarkup);
@@ -304,7 +305,7 @@ end;
 
 function THTMLReader.IsStartTagChar: Boolean;
 var
-  WC: WideChar;
+  WC: Char;
 begin
   WC := FHTMLStr[FPosition];
   Result := (Ord(WC) = startTagChar);
@@ -313,7 +314,7 @@ end;
 function THTMLReader.Match(const Signature: string; IgnoreCase: Boolean): Boolean;
 var
   I, J: Integer;
-  W1, W2: WideChar;
+  W1, W2: Char;
 begin
   Result := False;
 
@@ -419,6 +420,7 @@ begin
   end;
 
   Result := SkipTo(DocTypeEndStr);
+  FireEvent(FOnDocType);
 end;
 
 function THTMLReader.ReadElementNode: Boolean;
@@ -453,7 +455,7 @@ begin
   TagName := LowerCase(GetToken(tagNameDelimiter));
   if TagName = '' then Exit;
 
-  Result := SkipTo(WideChar(endTagChar));
+  Result := SkipTo(Char(endTagChar));
   if Result then
   begin
     FNodeType := END_ELEMENT_NODE;  
@@ -508,7 +510,7 @@ end;
 
 function THTMLReader.ReadNumericEntityNode: Boolean;
 var
-  Value: Word;
+  Value: Integer;
   HexBase: Boolean;
 begin
   Result := False;
@@ -534,13 +536,14 @@ begin
   Inc(FPosition);
   FNodeType := TEXT_NODE;
   FNodeValue := WideChar(Value);
+  FNodeIntValue := Value;
   FireEvent(FOnTextNode);
   Result := True;
 end;
 
 function THTMLReader.ReadQuotedValue(var Value: string): Boolean;
 var
-  QuotedChar: WideChar;
+  QuotedChar: Char;
   Start: Integer;
 begin
   QuotedChar := FHTMLStr[FPosition];
@@ -602,7 +605,8 @@ begin
     if Match(Signature, False) then
     begin
       Inc(FPosition, Length(Signature));
-      Exit(True);
+      Result := True;
+      Exit;
     end;
 
     Inc(FPosition);
@@ -622,6 +626,7 @@ begin
   FPrefix := '';
   FLocalName := '';
   FNodeValue := '';
+  FNodeIntValue := -1;
   FPublicID := '';
   FSystemID := '';
   FIsEmptyElement := False;
@@ -728,7 +733,7 @@ begin
     Inc(FPosition)
   end;
 
-  SkipTo(WideChar(endTagChar));
+  SkipTo(Char(endTagChar));
   FNodeType := ELEMENT_NODE;
   FireEvent(FOnElementEnd);
 end;
